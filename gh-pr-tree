@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -e
+
+# Colors
+BLUE='\033[94m'
+PURPLE='\033[95m'
+ORANGE='\033[38;5;208m'
+RESET='\033[0m'
+
+# Fetch all open PRs (including drafts) with relevant fields
+prs=$(gh pr list --state open --json number,headRefName,baseRefName,url,isDraft)
+
+# Function to print PRs recursively
+print_pr_tree() {
+    local base_branch="$1"
+    local indent="$2"
+    
+    echo "$prs" | jq -r --arg base "$base_branch" \
+        '.[] | select(.baseRefName == $base) | "\(.url)\t\(.headRefName)\t\(.baseRefName)\t\(.isDraft)"' | \
+    while IFS=$'\t' read -r url head base is_draft; do
+        draft_indicator=""
+        if [ "$is_draft" = "true" ]; then
+            draft_indicator=" ${ORANGE}[DRAFT]${RESET}"
+        fi
+        echo -e "${indent}${BLUE}${url}${RESET}  ${PURPLE}\`${head}\`${RESET} -> \`${base}\`${draft_indicator}"
+        # Recursively find PRs targeting this PR's head branch
+        print_pr_tree "$head" "$indent   "
+    done
+}
+
+# Start with common base branches
+for base in staging main master; do
+    print_pr_tree "$base" ""
+done
