@@ -11,10 +11,10 @@ RESET='\033[0m'
 prs=$(gh pr list --state open --json number,headRefName,baseRefName,url,isDraft)
 
 # Function to print PRs recursively
-print_pr_tree() {
+print_pr_stack() {
     local base_branch="$1"
     local indent="$2"
-    
+
     echo "$prs" | jq -r --arg base "$base_branch" \
         '.[] | select(.baseRefName == $base) | "\(.url)\t\(.headRefName)\t\(.baseRefName)\t\(.isDraft)"' | \
     while IFS=$'\t' read -r url head base is_draft; do
@@ -24,11 +24,11 @@ print_pr_tree() {
         fi
         echo -e "${indent}${BLUE}${url}${RESET}  ${PURPLE}\`${head}\`${RESET} -> \`${base}\`${draft_indicator}"
         # Recursively find PRs targeting this PR's head branch
-        print_pr_tree "$head" "$indent   "
+        print_pr_stack "$head" "$indent   "
     done
 }
 
 # Start with common base branches
 for base in staging main master; do
-    print_pr_tree "$base" ""
+    print_pr_stack "$base" ""
 done
