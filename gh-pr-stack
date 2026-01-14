@@ -10,7 +10,7 @@ RESET='\033[0m'
 # Fetch all open PRs (including drafts) with relevant fields
 prs=$(gh pr list --state open --json number,headRefName,baseRefName,url,isDraft)
 
-echo -e "${GREEN}OPEN PR STACKS${RESET}\n"
+echo -e "\n===== OPEN PR STACKS =====\n"
 
 # Function to print PRs recursively
 print_pr_stack() {
@@ -35,8 +35,8 @@ print_pr_stack() {
         if [ "$is_draft" = "true" ]; then
             draft_indicator=" ${ORANGE}[DRAFT]${RESET}"
         fi
-        # Line 1: head -> base [DRAFT]
-        echo -e "${indent}${head} -> ${GREEN}${base}${RESET}${draft_indicator}"
+        # Line 1: base <- head [DRAFT]
+        echo -e "${indent}${GREEN}${base}${RESET} <- ${head}${draft_indicator}"
         # Line 2: URL (same indentation)
         echo -e "${indent}${CYAN}${url}${RESET}"
         # Recursively find PRs targeting this PR's head branch
