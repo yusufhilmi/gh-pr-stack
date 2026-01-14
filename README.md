@@ -5,7 +5,7 @@ Visualize stacked pull requests in a tree format.
 ## Installation
 
 ```bash
-gh extension install <your-username>/gh-pr-stack
+gh extension install yusufhilmi/gh-pr-stack
 ```
 
 ## Usage
