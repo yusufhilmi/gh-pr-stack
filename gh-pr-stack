@@ -2,29 +2,49 @@
 set -e
 
 # Colors
-BLUE='\033[94m'
-PURPLE='\033[95m'
+GREEN='\033[32m'
+CYAN='\033[36m'
 ORANGE='\033[38;5;208m'
 RESET='\033[0m'
 
 # Fetch all open PRs (including drafts) with relevant fields
 prs=$(gh pr list --state open --json number,headRefName,baseRefName,url,isDraft)
 
+echo -e "${GREEN}OPEN PR STACKS${RESET}\n"
+
 # Function to print PRs recursively
 print_pr_stack() {
     local base_branch="$1"
     local indent="$2"
 
+    # Count how many PRs target this base branch
+    local child_count
+    child_count=$(echo "$prs" | jq --arg base "$base_branch" '[.[] | select(.baseRefName == $base)] | length')
+
+    local index=0
     echo "$prs" | jq -r --arg base "$base_branch" \
         '.[] | select(.baseRefName == $base) | "\(.url)\t\(.headRefName)\t\(.baseRefName)\t\(.isDraft)"' | \
     while IFS=$'\t' read -r url head base is_draft; do
+        # Add empty line between siblings when there are 2+ children (not before first)
+        if [ "$child_count" -ge 2 ] && [ "$index" -gt 0 ]; then
+            echo ""
+        fi
+        index=$((index + 1))
+
         draft_indicator=""
         if [ "$is_draft" = "true" ]; then
             draft_indicator=" ${ORANGE}[DRAFT]${RESET}"
         fi
-        echo -e "${indent}${BLUE}${url}${RESET}  ${PURPLE}\`${head}\`${RESET} -> \`${base}\`${draft_indicator}"
+        # Line 1: head -> base [DRAFT]
+        echo -e "${indent}${head} -> ${GREEN}${base}${RESET}${draft_indicator}"
+        # Line 2: URL (same indentation)
+        echo -e "${indent}${CYAN}${url}${RESET}"
         # Recursively find PRs targeting this PR's head branch
-        print_pr_stack "$head" "$indent   "
+        print_pr_stack "$head" "${indent}   "
+        # Add empty line after root-level PR trees for readability
+        if [ -z "$indent" ]; then
+            echo ""
+        fi
     done
 }
 
