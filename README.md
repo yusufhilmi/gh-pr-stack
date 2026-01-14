@@ -43,3 +43,62 @@ Shows all open PRs (including drafts) in a stacked structure based on their base
 - Draft PRs are marked with `[DRAFT]`
 - Indentation shows PR dependencies
 - Empty lines separate sibling branches and root-level stacks
+
+## TODO - Multi-repo Support
+
+Since I prefer monorepos, didnt implement this but if you feel like it, feel free to contribute.
+
+Include PRs from other repositories (same owner):
+
+```bash
+gh pr-stack --include backend,frontend
+gh pr-stack --include backend frontend
+```
+
+Include repos from different owners:
+
+```bash
+gh pr-stack --include other-org/repo
+```
+
+### Unified View
+
+```bash
+gh pr-stack --include backend,frontend
+```
+
+```
+OPEN PR STACKS
+
+[frontend]
+feature-auth -> main
+https://github.com/user/frontend/pull/42
+
+[backend]
+feature-auth -> main
+https://github.com/user/backend/pull/15
+
+fix/api-bug -> main
+https://github.com/user/backend/pull/16
+```
+
+### Multi-repo (with --match)
+
+Use `--match` to group PRs with matching branch names across repos:
+
+```bash
+gh pr-stack --include backend,frontend --match
+```
+
+```
+OPEN PR STACKS
+
+[UNIFIED frontend backend]
+
+feature-auth -> main
+https://github.com/user/frontend/pull/42
+https://github.com/user/backend/pull/15
+
+fix/api-bug -> main
+https://github.com/user/backend/pull/16
+```
