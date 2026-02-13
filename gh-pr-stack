@@ -3,12 +3,14 @@ set -e
 
 # Colors
 GREEN='\033[32m'
+RED='\033[31m'
+PURPLE='\033[35m'
 CYAN='\033[36m'
 ORANGE='\033[38;5;208m'
 RESET='\033[0m'
 
 # Fetch all open PRs (including drafts) with relevant fields
-prs=$(gh pr list --state open --json number,headRefName,baseRefName,url,isDraft)
+prs=$(gh pr list --state open --json number,headRefName,baseRefName,url,isDraft,additions,deletions,changedFiles)
 
 echo -e "\n===== OPEN PR STACKS =====\n"
 
@@ -23,8 +25,8 @@ print_pr_stack() {
 
     local index=0
     echo "$prs" | jq -r --arg base "$base_branch" \
-        '.[] | select(.baseRefName == $base) | "\(.url)\t\(.headRefName)\t\(.baseRefName)\t\(.isDraft)"' | \
-    while IFS=$'\t' read -r url head base is_draft; do
+        '.[] | select(.baseRefName == $base) | "\(.url)\t\(.headRefName)\t\(.baseRefName)\t\(.isDraft)\t\(.additions)\t\(.deletions)\t\(.changedFiles)"' | \
+    while IFS=$'\t' read -r url head base is_draft additions deletions changed_files; do
         # Add empty line between siblings when there are 2+ children (not before first)
         if [ "$child_count" -ge 2 ] && [ "$index" -gt 0 ]; then
             echo ""
@@ -35,9 +37,12 @@ print_pr_stack() {
         if [ "$is_draft" = "true" ]; then
             draft_indicator=" ${ORANGE}[DRAFT]${RESET}"
         fi
-        # Line 1: base <- head [DRAFT]
-        echo -e "${indent}${GREEN}${base}${RESET} <- ${head}${draft_indicator}"
-        # Line 2: URL (same indentation)
+
+        # Line 1: +123 −45 (3 files)
+        echo -e "${indent}${GREEN}+${additions}${RESET} ${RED}−${deletions}${RESET} ${ORANGE}(${changed_files} files)${RESET}"
+        # Line 2: base <- head [DRAFT]
+        echo -e "${indent}${PURPLE}${base}${RESET} <- ${head}${draft_indicator}"
+        # Line 3: URL (same indentation)
         echo -e "${indent}${CYAN}${url}${RESET}"
         # Recursively find PRs targeting this PR's head branch
         print_pr_stack "$head" "${indent}   "
