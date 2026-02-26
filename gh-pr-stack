@@ -10,9 +10,21 @@ ORANGE='\033[38;5;208m'
 RESET='\033[0m'
 
 # Fetch all open PRs (including drafts) with relevant fields
-prs=$(gh pr list --state open --json number,headRefName,baseRefName,url,isDraft,additions,deletions,changedFiles)
+prs=$(gh pr list --state open --json number,headRefName,baseRefName,url,isDraft,additions,deletions,changedFiles --limit 200)
+
+# Collect all head branch names (branches that have a PR)
+head_branches=$(echo "$prs" | jq -r '[.[].headRefName] | unique | .[]')
+
+# Find root base branches: bases that are NOT the head of any open PR
+# These are the true roots of PR stacks (e.g., main, staging if no PR targets it)
+root_bases=$(echo "$prs" | jq -r --argjson heads "$(echo "$prs" | jq '[.[].headRefName] | unique')" \
+    '[.[].baseRefName] | unique | map(select(. as $b | $heads | index($b) | not)) | .[]')
 
 echo -e "\n===== OPEN PR STACKS =====\n"
+
+# Track printed PR numbers to avoid duplicates
+printed_file=$(mktemp)
+trap "rm -f $printed_file" EXIT
 
 # Function to print PRs recursively
 print_pr_stack() {
@@ -25,8 +37,14 @@ print_pr_stack() {
 
     local index=0
     echo "$prs" | jq -r --arg base "$base_branch" \
-        '.[] | select(.baseRefName == $base) | "\(.url)\t\(.headRefName)\t\(.baseRefName)\t\(.isDraft)\t\(.additions)\t\(.deletions)\t\(.changedFiles)"' | \
-    while IFS=$'\t' read -r url head base is_draft additions deletions changed_files; do
+        '.[] | select(.baseRefName == $base) | "\(.number)\t\(.url)\t\(.headRefName)\t\(.baseRefName)\t\(.isDraft)\t\(.additions)\t\(.deletions)\t\(.changedFiles)"' | \
+    while IFS=$'\t' read -r number url head base is_draft additions deletions changed_files; do
+        # Skip if already printed
+        if grep -qx "$number" "$printed_file" 2>/dev/null; then
+            continue
+        fi
+        echo "$number" >> "$printed_file"
+
         # Add empty line between siblings when there are 2+ children (not before first)
         if [ "$child_count" -ge 2 ] && [ "$index" -gt 0 ]; then
             echo ""
@@ -53,7 +71,32 @@ print_pr_stack() {
     done
 }
 
-# Start with common base branches
-for base in staging main master; do
+# Print stacks starting from each root base branch
+for base in $root_bases; do
     print_pr_stack "$base" ""
 done
+
+# Check for any PRs that weren't printed (disconnected/orphan PRs)
+total_prs=$(echo "$prs" | jq 'length')
+printed_count=$(wc -l < "$printed_file" | tr -d ' ')
+
+if [ "$printed_count" -lt "$total_prs" ]; then
+    echo -e "===== STANDALONE PRs =====\n"
+    echo "$prs" | jq -r '.[] | "\(.number)\t\(.url)\t\(.headRefName)\t\(.baseRefName)\t\(.isDraft)\t\(.additions)\t\(.deletions)\t\(.changedFiles)"' | \
+    while IFS=$'\t' read -r number url head base is_draft additions deletions changed_files; do
+        if grep -qx "$number" "$printed_file" 2>/dev/null; then
+            continue
+        fi
+        echo "$number" >> "$printed_file"
+
+        draft_indicator=""
+        if [ "$is_draft" = "true" ]; then
+            draft_indicator=" ${ORANGE}[DRAFT]${RESET}"
+        fi
+
+        echo -e "${GREEN}+${additions}${RESET} ${RED}−${deletions}${RESET} ${ORANGE}(${changed_files} files)${RESET}"
+        echo -e "${PURPLE}${base}${RESET} <- ${head}${draft_indicator}"
+        echo -e "${CYAN}${url}${RESET}"
+        echo ""
+    done
+fi
